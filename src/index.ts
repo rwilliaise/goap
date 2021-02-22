@@ -1,3 +1,5 @@
+import { PathfindingService } from "@rbxts/services";
+
 interface Node {
 	parent?: Node;
 	runningCost: number;
@@ -30,6 +32,9 @@ class StateMachine {
 	}
 }
 
+/**
+ * Used by the planner to set a concrete goal that the AI should go after.
+ */
 export abstract class Goal {
 	/**
 	 * Checks if a goal should be pursued.
@@ -45,6 +50,8 @@ export abstract class Goal {
 	 */
 	abstract reachedGoal(state: WorldState): boolean;
 
+	// TODO: probably should implement this system one of these days
+
 	/*
 	 * Used to bias the planner towards some goals instead of others. The weight
 	 * of a given Goal is procedurally produced, based on the current state. This
@@ -57,8 +64,11 @@ export abstract class Goal {
 	// abstract getWeight(state: WorldState): number;
 }
 
+/**
+ * Actions are used alongside other Actions to reach a given goal.
+ */
 export abstract class Action {
-	public preconditions: WorldState = new Map();
+	private preconditions: WorldState = new Map();
 
 	/**
 	 * Checks whether or not the current world state is valid for this given
@@ -82,10 +92,22 @@ export abstract class Action {
 		return this.checkProceduralPreconditions(state);
 	}
 
+	/**
+	 * Invoked after all constant preconditions are checked. This flags whether
+	 * or not a given state is good for this given action.
+	 *
+	 * @param state State to check against.
+	 */
 	checkProceduralPreconditions(state: WorldState) {
 		return true;
 	}
 
+	/**
+	 * Sets a given state to be a precondition.
+	 *
+	 * @param index Index of given value in the WorldState
+	 * @param value Value to be put as a condition.
+	 */
 	addPrecondition(index: string, value: unknown) {
 		this.preconditions.set(index, value);
 	}
@@ -108,11 +130,45 @@ export abstract class Action {
 	abstract getCost(): number;
 
 	/**
+	 * Used to assess when the Action is done performing.
+	 */
+	abstract isDone(): boolean;
+
+	/**
 	 * Clean up variables and other things within the Action.
 	 */
 	reset() {
 		// nothing to clean up!
 	}
+}
+
+/**
+ * Action that requires the Actor to be at a given target position.
+ */
+export abstract class MovingAction extends Action {
+	public target?: Vector3;
+	public inRange = false;
+
+	checkProceduralPreconditions(state: WorldState) {
+		const foundTarget = this.findTarget(state);
+		if (foundTarget) {
+			this.target = foundTarget;
+			return true;
+		}
+		return false;
+	}
+
+	reset() {
+		this.target = undefined;
+		this.inRange = false;
+	}
+
+	/**
+	 * Tries to find a viable target, and returns the position.
+	 *
+	 * @param state State to get target from
+	 */
+	abstract findTarget(state: WorldState): Vector3 | undefined;
 }
 
 export class Planner {
@@ -240,6 +296,7 @@ export abstract class Actor {
 
 	private character: Instance = this.createCharacter();
 	private humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
+	private moving = false;
 
 	private stack: StateMachine = new StateMachine(this);
 	private currentPlan: Action[] | undefined;
@@ -248,17 +305,92 @@ export abstract class Actor {
 		this.stack.push(this.idle);
 	}
 
+	/**
+	 * Idle state for the FSM
+	 * @param actor Actor to perform the FiniteState on
+	 */
 	idle = (actor: Actor) => {
 		const plan = actor.planner.plan(actor.getState());
 
-		// if (plan) {
+		if (plan) {
+			actor.currentPlan = plan;
 
-		// }
+			actor.stack.pop();
+			actor.stack.push(actor.perform);
+		} else {
+			actor.failedPlan();
+			actor.stack.pop();
+			actor.stack.push(actor.idle);
+		}
 	};
 
-	perform = (actor: Actor) => { };
+	/**
+	 * Perform action state for the FSM
+	 * @param actor Actor to perform the FiniteState on
+	 */
+	perform = (actor: Actor) => {
+		if (actor.currentPlan?.size() === 0) {
+			actor.stack.pop();
+			actor.stack.push(actor.idle);
+			return;
+		}
 
-	moveTo = (actor: Actor) => { };
+		let action = actor.currentPlan![actor.currentPlan!.size() - 1];
+
+		if (action.isDone()) {
+			actor.currentPlan?.pop();
+		}
+
+		if (actor.currentPlan!.size() > 0) {
+			action = actor.currentPlan![actor.currentPlan!.size() - 1];
+
+			const inRange = action instanceof MovingAction ? action.inRange : true;
+
+			if (inRange) {
+				const success = action.perform(actor);
+
+				if (!success) {
+					actor.stack.pop();
+					actor.stack.push(actor.idle);
+				}
+			} else {
+				actor.stack.push(actor.moveTo);
+			}
+		} else {
+			actor.stack.pop();
+			actor.stack.push(actor.idle);
+		}
+	};
+
+	/**
+	 * MoveTo state for the FSM
+	 * @param actor Actor to perform the FiniteState on
+	 */
+	moveTo = (actor: Actor) => {
+		if (actor.moving) {
+			// since we are already moving, everything is assessed, and thus good to go.
+			return;
+		}
+
+		const action = actor.currentPlan![actor.currentPlan!.size() - 1] as MovingAction;
+
+		// technically, this shouldn't be possible without major error from the dev
+		if (action instanceof MovingAction && action.target === undefined) {
+			// no target to go to, just pop move and perform actions
+			actor.stack.pop();
+			actor.stack.pop();
+			actor.stack.push(actor.idle);
+			return;
+		}
+
+		actor.moving = true;
+
+		actor.move(action.target!).then(() => {
+			action.inRange = true;
+			actor.moving = false;
+			actor.stack.pop();
+		});
+	};
 
 	/**
 	 * Runs the AI, including the current FSM state.
@@ -273,6 +405,60 @@ export abstract class Actor {
 
 	addGoal(goal: Goal) {
 		this.planner.addGoal(goal);
+	}
+
+	/**
+	 * Called when a plan fails, or a plan cannot be formulated.
+	 */
+	failedPlan() {
+		// nothing, probably would only use this for debugging
+	}
+
+	/**
+	 * Create a path object with agent params. By default, it does not have any
+	 * params.
+	 */
+	createPath() {
+		return PathfindingService.CreatePath();
+	}
+
+	/**
+	 * Make the character path to a specific point.
+	 *
+	 * @param target Position to move to
+	 */
+	async move(target: Vector3) {
+		const path = this.createPath();
+		path.ComputeAsync((this.character as Model).GetPrimaryPartCFrame().Position, target);
+		if (path.Status !== Enum.PathStatus.Success) {
+			return;
+		}
+
+		let blocked = false;
+
+		const connection = path.Blocked.Connect((waypointNum: number) => {
+			blocked = true;
+			this.move(target).then(() => {
+				blocked = false;
+			});
+			connection.Disconnect();
+		});
+
+		for (const waypoint of path.GetWaypoints()) {
+			if (blocked) {
+				while (blocked) {
+					// stall
+				}
+				return;
+			}
+			if (waypoint.Action === Enum.PathWaypointAction.Jump) {
+				this.humanoid.Jump = true;
+			}
+			this.humanoid.MoveTo(waypoint.Position);
+			this.humanoid.MoveToFinished.Wait();
+		}
+
+		connection.Disconnect();
 	}
 
 	/**
