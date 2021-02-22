@@ -294,7 +294,7 @@ export class Planner {
 export abstract class Actor {
 	private planner: Planner = new Planner();
 
-	private character: Instance = this.createCharacter();
+	protected character: Instance = this.createCharacter();
 	private humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
 	private moving = false;
 
