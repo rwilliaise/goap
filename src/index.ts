@@ -292,16 +292,16 @@ export class Planner {
  * A humanoid that can plan and do those plans accordingly.
  */
 export abstract class Actor {
-	private planner: Planner = new Planner();
+	protected planner: Planner = new Planner();
 
 	protected character: Instance = this.createCharacter();
-	private humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
-	private moving = false;
+	protected humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
+	protected moving = false;
 
-	private stack: StateMachine = new StateMachine(this);
-	private currentPlan: Action[] | undefined;
+	protected stack: StateMachine = new StateMachine(this);
+	protected currentPlan: Action[] | undefined;
 
-	public constructor() {
+	protected constructor() {
 		this.stack.push(this.idle);
 	}
 
@@ -427,38 +427,52 @@ export abstract class Actor {
 	 *
 	 * @param target Position to move to
 	 */
-	async move(target: Vector3) {
-		const path = this.createPath();
-		path.ComputeAsync((this.character as Model).GetPrimaryPartCFrame().Position, target);
-		if (path.Status !== Enum.PathStatus.Success) {
-			return;
-		}
-
-		let blocked = false;
-
-		const connection = path.Blocked.Connect((waypointNum: number) => {
-			blocked = true;
-			this.move(target).then(() => {
-				blocked = false;
+	move(target: Vector3) {
+		return new Promise<void>((resolve, reject, onCancel) => {
+			let cancelled = false;
+			onCancel(() => {
+				cancelled = true;
 			});
-			connection.Disconnect();
-		});
-
-		for (const waypoint of path.GetWaypoints()) {
-			if (blocked) {
-				while (blocked) {
-					// stall
-				}
+			const path = this.createPath();
+			path.ComputeAsync((this.character as Model).GetPrimaryPartCFrame().Position, target);
+			if (path.Status !== Enum.PathStatus.Success) {
+				reject();
 				return;
 			}
-			if (waypoint.Action === Enum.PathWaypointAction.Jump) {
-				this.humanoid.Jump = true;
-			}
-			this.humanoid.MoveTo(waypoint.Position);
-			this.humanoid.MoveToFinished.Wait();
-		}
 
-		connection.Disconnect();
+			let blocked = false;
+
+			const connection = path.Blocked.Connect((waypointNum: number) => {
+				blocked = true;
+				this.move(target).then(() => {
+					blocked = false;
+				});
+				connection.Disconnect();
+			});
+
+			for (const waypoint of path.GetWaypoints()) {
+				if (cancelled) {
+					break;
+				}
+				if (blocked) {
+					while (blocked) {
+						if (cancelled) {
+							break;
+						}
+						// stall
+					}
+					return;
+				}
+				if (waypoint.Action === Enum.PathWaypointAction.Jump) {
+					this.humanoid.Jump = true;
+				}
+				this.humanoid.MoveTo(waypoint.Position);
+				this.humanoid.MoveToFinished.Wait();
+			}
+
+			connection.Disconnect();
+			resolve();
+		});
 	}
 
 	/**
