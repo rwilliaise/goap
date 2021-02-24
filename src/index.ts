@@ -40,28 +40,26 @@ export abstract class Goal {
 	 * Checks if a goal should be pursued.
 	 *
 	 * @param state State that the Goal should check against.
+	 * @param actor Actor that the Goal should check against.
 	 */
-	abstract isValid(state: WorldState): boolean;
+	abstract isValid(state: WorldState, actor: Actor): boolean;
 
 	/**
 	 * Checks if a state reaches the given goal.
 	 *
 	 * @param state State that the Goal should check.
+	 * @param actor Actor that the Goal should check.
 	 */
-	abstract reachedGoal(state: WorldState): boolean;
+	abstract reachedGoal(state: WorldState, actor: Actor): boolean;
 
-	// TODO: probably should implement this system one of these days
-
-	/*
+	/**
 	 * Used to bias the planner towards some goals instead of others. The weight
 	 * of a given Goal is procedurally produced, based on the current state. This
 	 * allows the planner to plan more dynamically than if it were a fixed cost.
 	 *
-	 * Currently, this is not implemented. Hopefully, this will be implemented.
-	 *
 	 * @param state Given state that the Goal should assess.
 	 */
-	// abstract getWeight(state: WorldState): number;
+	abstract getWeight(state: WorldState, actor: Actor): number;
 }
 
 /**
@@ -75,8 +73,9 @@ export abstract class Action {
 	 * action.
 	 *
 	 * @param state State that the Action should check against.
+	 * @param actor Actor that the Action should check against.
 	 */
-	isValid(state: WorldState) {
+	isValid(state: WorldState, actor: Actor) {
 		for (const [index, value] of this.preconditions) {
 			let match = false;
 			for (const [otherIndex, otherValue] of state) {
@@ -89,16 +88,16 @@ export abstract class Action {
 				return false;
 			}
 		}
-		return this.checkProceduralPreconditions(state);
+		return this.checkProceduralPreconditions(actor);
 	}
 
 	/**
 	 * Invoked after all constant preconditions are checked. This flags whether
-	 * or not a given state is good for this given action.
+	 * or not the state a given actor is in is good for this given action.
 	 *
-	 * @param state State to check against.
+	 * @param actor Actor to check against.
 	 */
-	checkProceduralPreconditions(state: WorldState) {
+	checkProceduralPreconditions(actor: Actor) {
 		return true;
 	}
 
@@ -116,11 +115,14 @@ export abstract class Action {
 	 * Used to get how the given Action will affect the state.
 	 *
 	 * @param state State that the Action should mutate.
+	 * @param actor Actor that the Action should use to mutate the state.
 	 */
-	abstract populate(state: WorldState): WorldState;
+	abstract populate(state: WorldState, actor: Actor): WorldState;
 
 	/**
 	 * Perform the given action.
+	 *
+	 * @param actor Actor to perform the action on.
 	 */
 	abstract perform(actor: Actor): boolean;
 
@@ -149,8 +151,8 @@ export abstract class MovingAction extends Action {
 	public target?: Vector3;
 	public inRange = false;
 
-	checkProceduralPreconditions(state: WorldState) {
-		const foundTarget = this.findTarget(state);
+	checkProceduralPreconditions(actor: Actor) {
+		const foundTarget = this.findTarget(actor);
 		if (foundTarget) {
 			this.target = foundTarget;
 			return true;
@@ -168,13 +170,19 @@ export abstract class MovingAction extends Action {
 	 *
 	 * @param state State to get target from
 	 */
-	abstract findTarget(state: WorldState): Vector3 | undefined;
+	abstract findTarget(actor: Actor): Vector3 | undefined;
 }
 
 export class Planner {
 	// AI goals and possible actions
 	private goals: Goal[] = [];
 	private actions: Action[] = [];
+
+	private actor: Actor;
+
+	public constructor(actor: Actor) {
+		this.actor = actor;
+	}
 
 	/**
 	 * Creates a new plan for the AI to follow.
@@ -187,7 +195,7 @@ export class Planner {
 		// goals that arent valid at the start of planning probably wont be valid at the end of planning
 		// this may be a fallacy but i dont really care LMAO
 		const pursuableGoals = this.goals.mapFiltered((value) => {
-			return value.isValid(state) ? value : undefined;
+			return value.isValid(state, this.actor) ? value : undefined;
 		});
 
 		// build the graph, and see if it found a solution
@@ -243,9 +251,9 @@ export class Planner {
 
 		// loop through all possible actions, testing to see if this given action will meet any goal.
 		for (const action of actions) {
-			if (action.isValid(parent!.runningState)) {
+			if (action.isValid(parent!.runningState, this.actor)) {
 				// okay! this action can be done
-				const currentState = action.populate(parent!.runningState);
+				const currentState = action.populate(parent!.runningState, this.actor);
 				const node = {
 					parent: parent,
 					runningCost: parent.runningCost + action.getCost(),
@@ -255,13 +263,17 @@ export class Planner {
 
 				// meets ANY goal
 				// TODO: allow weighted goals, some are preferred over others
-				const meetsGoal = goals.some((value) => {
-					return value.reachedGoal(currentState);
+				let goalScore = 0;
+				goals.forEach((value) => {
+					goalScore += value.reachedGoal(currentState, this.actor)
+						? value.getWeight(currentState, this.actor)
+						: 0;
 				});
 
 				// if it meets literally ANY goal, we are good to go
 				// possibly could subtract goal weight from runningCost
-				if (meetsGoal) {
+				if (goalScore > 0) {
+					node.runningCost -= goalScore;
 					leaves.push(node);
 					found = true;
 				} else {
@@ -292,14 +304,13 @@ export class Planner {
  * A humanoid that can plan and do those plans accordingly.
  */
 export abstract class Actor {
-	protected planner: Planner = new Planner();
-
-	protected character: Instance = this.createCharacter();
-	protected humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
-	protected moving = false;
+	public character: Instance = this.createCharacter();
+	public humanoid: Humanoid = this.character.WaitForChild("Humanoid") as Humanoid;
 
 	protected stack: StateMachine = new StateMachine(this);
+	protected planner: Planner = new Planner(this);
 	protected currentPlan: Action[] | undefined;
+	protected moving = false;
 
 	protected constructor() {
 		this.stack.push(this.idle);
@@ -395,7 +406,7 @@ export abstract class Actor {
 	/**
 	 * Runs the AI, including the current FSM state.
 	 */
-	update() {
+	async update() {
 		this.stack.update();
 	}
 
