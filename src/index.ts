@@ -1,5 +1,11 @@
 import { HttpService, PathfindingService } from "@rbxts/services";
 
+export enum ActionState {
+	WAITING,
+	DOING,
+	DONE,
+}
+
 interface Node {
 	parent?: Node;
 	runningCost: number;
@@ -134,7 +140,7 @@ export abstract class Action {
 	/**
 	 * Used to assess when the Action is done performing.
 	 */
-	abstract isDone(): boolean;
+	abstract getState(): ActionState;
 
 	/**
 	 * Clean up variables and other things within the Action.
@@ -359,7 +365,12 @@ export abstract class Actor {
 
 		let action = actor.currentPlan![actor.currentPlan!.size() - 1];
 
-		if (action.isDone()) {
+		if (action.getState() === ActionState.DOING) {
+			// dont do anything and wait
+			return;
+		}
+
+		if (action.getState() === ActionState.DONE) {
 			this.debug("Finished action!");
 			actor.currentPlan?.pop();
 		}
@@ -473,6 +484,7 @@ export abstract class Actor {
 				}
 				if (blocked) {
 					promise!.await();
+					resolve();
 					return;
 				}
 				if (waypoint.Action === Enum.PathWaypointAction.Jump) {
