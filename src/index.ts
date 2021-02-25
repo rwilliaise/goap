@@ -1,4 +1,4 @@
-import { PathfindingService } from "@rbxts/services";
+import { HttpService, PathfindingService } from "@rbxts/services";
 
 interface Node {
 	parent?: Node;
@@ -19,7 +19,7 @@ class StateMachine {
 	}
 
 	update() {
-		const func = this.stack[this.stack.size()];
+		const func = this.stack[this.stack.size() - 1];
 		func(this.actor);
 	}
 
@@ -197,6 +197,7 @@ export class Planner {
 		const pursuableGoals = this.goals.mapFiltered((value) => {
 			return value.isValid(state, this.actor) ? value : undefined;
 		});
+		this.actor.debug(pursuableGoals);
 
 		// build the graph, and see if it found a solution
 		const [success, leaves] = this.build(this.actions, pursuableGoals, {
@@ -205,6 +206,7 @@ export class Planner {
 		}) as LuaTuple<[boolean, Node[]]>; // typing nonsense, but works :shrug:
 
 		if (!success) {
+			this.actor.debug("Failed to generate graph!");
 			// no way to meet any goals, oh well
 			return [];
 		}
@@ -270,9 +272,13 @@ export class Planner {
 						: 0;
 				});
 
+				this.actor.debug("goalScore: ", goalScore, "action:", action);
+				this.actor.debug("currentState: ", currentState);
+
 				// if it meets literally ANY goal, we are good to go
 				// possibly could subtract goal weight from runningCost
 				if (goalScore > 0) {
+					this.actor.debug("Wow! It works!");
 					node.runningCost -= goalScore;
 					leaves.push(node);
 					found = true;
@@ -312,6 +318,9 @@ export abstract class Actor {
 	protected currentPlan: Action[] | undefined;
 	protected moving = false;
 
+	private debugMode = false;
+	private uniqueId = HttpService.GenerateGUID();
+
 	protected constructor() {
 		this.stack.push(this.idle);
 	}
@@ -328,10 +337,11 @@ export abstract class Actor {
 
 			actor.stack.pop();
 			actor.stack.push(actor.perform);
+			this.debug("Found a plan!");
 		} else {
-			actor.failedPlan();
 			actor.stack.pop();
 			actor.stack.push(actor.idle);
+			this.debug("Failed plan!");
 		}
 	};
 
@@ -341,6 +351,7 @@ export abstract class Actor {
 	 */
 	perform = (actor: Actor) => {
 		if (actor.currentPlan?.size() === 0) {
+			this.debug("Empty plan!");
 			actor.stack.pop();
 			actor.stack.push(actor.idle);
 			return;
@@ -349,6 +360,7 @@ export abstract class Actor {
 		let action = actor.currentPlan![actor.currentPlan!.size() - 1];
 
 		if (action.isDone()) {
+			this.debug("Finished action!");
 			actor.currentPlan?.pop();
 		}
 
@@ -358,6 +370,7 @@ export abstract class Actor {
 			const inRange = action instanceof MovingAction ? action.inRange : true;
 
 			if (inRange) {
+				this.debug("Performing action!");
 				const success = action.perform(actor);
 
 				if (!success) {
@@ -368,6 +381,7 @@ export abstract class Actor {
 				actor.stack.push(actor.moveTo);
 			}
 		} else {
+			this.debug("Finished plan!");
 			actor.stack.pop();
 			actor.stack.push(actor.idle);
 		}
@@ -419,13 +433,6 @@ export abstract class Actor {
 	}
 
 	/**
-	 * Called when a plan fails, or a plan cannot be formulated.
-	 */
-	failedPlan() {
-		// nothing, probably would only use this for debugging
-	}
-
-	/**
 	 * Create a path object with agent params. By default, it does not have any
 	 * params.
 	 */
@@ -441,6 +448,7 @@ export abstract class Actor {
 	move(target: Vector3) {
 		return new Promise<void>((resolve, reject, onCancel) => {
 			let cancelled = false;
+			let promise: Promise<void> | undefined = undefined;
 			onCancel(() => {
 				cancelled = true;
 			});
@@ -455,9 +463,7 @@ export abstract class Actor {
 
 			const connection = path.Blocked.Connect((waypointNum: number) => {
 				blocked = true;
-				this.move(target).then(() => {
-					blocked = false;
-				});
+				promise = this.move(target);
 				connection.Disconnect();
 			});
 
@@ -466,12 +472,7 @@ export abstract class Actor {
 					break;
 				}
 				if (blocked) {
-					while (blocked) {
-						if (cancelled) {
-							break;
-						}
-						// stall
-					}
+					promise!.await();
 					return;
 				}
 				if (waypoint.Action === Enum.PathWaypointAction.Jump) {
@@ -484,6 +485,20 @@ export abstract class Actor {
 			connection.Disconnect();
 			resolve();
 		});
+	}
+
+	debug(...args: unknown[]) {
+		if (!this.debugMode) {
+			return;
+		}
+		print("[" + this.uniqueId + "]", ...args);
+	}
+
+	/**
+	 * Forces the Actor to debug everything.
+	 */
+	forceDebug() {
+		this.debugMode = true;
 	}
 
 	/**
