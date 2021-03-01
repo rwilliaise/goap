@@ -270,7 +270,6 @@ export class Planner {
         }
 
         // meets ANY goal
-        // TODO: allow weighted goals, some are preferred over others
         let goalScore = 0
         goals.forEach((value) => {
           goalScore += value.reachedGoal(currentState, this.actor)
@@ -282,7 +281,6 @@ export class Planner {
         this.actor.debug('currentState: ', currentState)
 
         // if it meets literally ANY goal, we are good to go
-        // possibly could subtract goal weight from runningCost
         if (goalScore > 0) {
           this.actor.debug('Wow! It works!')
           node.runningCost -= goalScore
