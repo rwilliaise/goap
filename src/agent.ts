@@ -1,4 +1,7 @@
+import { AgentAction } from 'action'
 import { AgentGoal } from 'goal'
+
+export type DataSet = Map<string, boolean>
 
 enum RunningThread {
   NONE,
@@ -16,4 +19,8 @@ export class Agent {
   runningState: RunningState = RunningState.ACTION // idle, by default
 
   goals: Map<string, AgentGoal> = new Map()
+
+  constructor(public gameObject: Model) {}
+
+  removeAction(action: AgentAction) {}
 }
