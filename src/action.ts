@@ -1,4 +1,4 @@
-import { DataStoreService, Workspace } from '@rbxts/services'
+import { Workspace } from '@rbxts/services'
 import Thread from '@rbxts/thread'
 import { Agent, DataSet } from 'agent'
 
@@ -16,7 +16,7 @@ export abstract class AgentAction {
   /** The target of this action */
   target?: BasePart
   /** The children of this action. Used for planning */
-  childs: AgentAction[] = []
+  children: AgentAction[] = []
   /** Last position agent was in, cached */
   agentPosition: Vector3 = new Vector3()
   /** Should this action get removed when no target has been found? */
@@ -85,10 +85,10 @@ export abstract class AgentAction {
 
   /** Get the amount of child 'layers' that are children for this action */
   getDepth() {
-    if (this.childs.size() > 0) {
+    if (this.children.size() > 0) {
       let deepest = 0
 
-      for (const child of this.childs) {
+      for (const child of this.children) {
         const childDepth = child.getDepth()
         if (childDepth > deepest) {
           deepest = childDepth
@@ -109,43 +109,46 @@ export abstract class AgentAction {
    * Since references are not available in TS, I have to resort to an object.
    * Please supply an empty object. Please.
    */
-  getTotalCost(cheapestObject: { cheapest?: AgentAction[] }): number {
-    cheapestObject.cheapest = undefined
+  getTotalCost(cheapest: AgentAction[]): number {
+    cheapest.clear()
     this.cheapestCost = math.huge
     let totalCost = 0
 
     if (this.proceduralConditionsValid && !this.preconditionsValid) {
-      const totalActions: AgentAction[] | undefined = undefined
+      const totalActions: AgentAction[] = []
 
-      for (const child of this.childs) {
+      for (const child of this.children) {
         if (!child.proceduralConditionsValid) {
           continue
         }
 
         child.distance = this.distanceToChild(child)
-        totalCost = child.distance + child.getTotalCost(cheapestObject)
+        totalCost = child.distance + child.getTotalCost(totalActions)
 
         if (totalCost < this.cheapestCost) {
           if (totalActions !== undefined) {
-            cheapestObject.cheapest = totalActions
-            cheapestObject.cheapest!.push(this)
+            totalActions.forEach((value) => cheapest.push(value))
+            cheapest.push(this)
           } else {
-            cheapestObject.cheapest = totalActions
+            cheapest.clear()
           }
+          this.cheapestCost = totalCost
         }
       }
     }
 
     // no more valid child actions
-    if (cheapestObject.cheapest === undefined) {
+    if (cheapest.size() === 0) {
       // we have found the winning action!
       if (this.proceduralConditionsValid && this.preconditionsValid) {
-        cheapestObject.cheapest = []
-        cheapestObject.cheapest!.push(this)
+        cheapest.clear()
+        cheapest.push(this)
 
-        this.cheapestChilds = cheapestObject.cheapest
+        this.cheapestChilds = cheapest
         return this.cost + this.agentPosition.sub(this.position).Magnitude
       } else {
+        this.cheapestChilds = cheapest
+        return math.huge
       }
     }
 
@@ -280,7 +283,7 @@ export abstract class AgentAction {
     this.preconditionsValid = this.checkPreconditions(data)
     this.proceduralConditionsValid = this.checkProceduralPreconditions(data)
 
-    for (const child of this.childs) {
+    for (const child of this.children) {
       child.update(data)
     }
   }
