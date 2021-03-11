@@ -267,15 +267,28 @@ export abstract class AgentAction {
     return true
   }
 
+  /** Checks the procedural conditions of this action */
   checkProceduralPreconditions(data: DataSet) {
-    return this.target
+    return this.target !== undefined && !this.isBlocked
   }
 
+  /** Updates this action, caches all the data */
   update(data: DataSet) {
     this.updateTarget()
+    this.updatePosition()
+
+    this.preconditionsValid = this.checkPreconditions(data)
+    this.proceduralConditionsValid = this.checkProceduralPreconditions(data)
+
+    for (const child of this.childs) {
+      child.update(data)
+    }
   }
 
   abstract perform(): void
 
+  /**
+   * Needs to be called to clone this object, should be implemented in each clone
+   */
   abstract clone(): AgentAction
 }
