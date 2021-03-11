@@ -16,7 +16,7 @@
 	"homepage": "https://github.com/rwilliaise/goap#readme",
 	"types": "out/index.d.ts",
 	"devDependencies": {
-		"@rbxts/compiler-types": "^1.0.0-beta.15.1",
+		"@rbxts/compiler-types": "^1.0.0-types.0",
 		"@rbxts/types": "^1.0.453",
 		"@typescript-eslint/eslint-plugin": "^4.15.1",
 		"@typescript-eslint/parser": "^4.15.1",
