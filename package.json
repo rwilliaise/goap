@@ -4,7 +4,8 @@
 	"description": "",
 	"main": "out/init.lua",
 	"scripts": {
-		"prepublishOnly": "rbxtsc"
+		"prepublishOnly": "rbxtsc",
+    "test": "rbxtsc --type=game && rojo build -o unit_tests.rbxlx"
 	},
 	"keywords": [],
 	"author": "",
@@ -18,7 +19,6 @@
 	"devDependencies": {
 		"@rbxts/compiler-types": "^1.0.0-types.0",
 		"@rbxts/services": "^1.1.4",
-		"@rbxts/thread": "^1.0.0",
 		"@rbxts/types": "^1.0.461",
 		"@typescript-eslint/eslint-plugin": "^4.15.1",
 		"@typescript-eslint/parser": "^4.15.1",
@@ -29,5 +29,9 @@
 		"prettier": "^2.2.1",
 		"rbxts-transformer-services": "^1.0.0",
 		"typescript": "^4.1.5"
+	},
+	"dependencies": {
+		"@rbxts/testez": "^0.3.1-ts.6",
+		"@rbxts/thread": "^1.0.0"
 	}
 }

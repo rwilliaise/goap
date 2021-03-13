@@ -33,6 +33,8 @@ export class Agent {
   /** Contains the current plan, a stack of actions to be executed */
   activeActions: AgentAction[] = []
 
+  isAwake = false
+
   /**
    * Can contain an action that needs to be performed before everything else
    * when it's conditions are true
@@ -51,10 +53,7 @@ export class Agent {
 
   transformName?: string
 
-  constructor(public gameObject: Model) {
-    this.awake()
-    this.start()
-  }
+  constructor(public gameObject: Model) {}
 
   /** Get the currently running action */
   getActiveAction() {
@@ -96,7 +95,6 @@ export class Agent {
   /** Ran after awake; do not extend. */
   start() {
     this.transformName = this.gameObject.Name
-
     this.startUpdatingTrees()
   }
 
