@@ -109,13 +109,13 @@ export abstract class AgentAction {
    * Since references are not available in TS, I have to resort to an object.
    * Please supply an empty object. Please.
    */
-  getTotalCost(cheapest: AgentAction[]): number {
-    cheapest.clear()
+  getTotalCost(cheapest?: AgentAction[]): [number, AgentAction[] | undefined] {
+    cheapest = undefined
     this.cheapestCost = math.huge
     let totalCost = 0
 
     if (this.proceduralConditionsValid && !this.preconditionsValid) {
-      const totalActions: AgentAction[] = []
+      let totalActions: AgentAction[] | undefined = undefined
 
       for (const child of this.children) {
         if (!child.proceduralConditionsValid) {
@@ -123,14 +123,15 @@ export abstract class AgentAction {
         }
 
         child.distance = this.distanceToChild(child)
-        totalCost = child.distance + child.getTotalCost(totalActions)
+        ;[totalCost, totalActions] = child.getTotalCost(totalActions)
+        totalCost += child.distance
 
         if (totalCost < this.cheapestCost) {
           if (totalActions !== undefined) {
-            totalActions.forEach((value) => cheapest.push(value))
+            cheapest = totalActions
             cheapest.push(this)
           } else {
-            cheapest.clear()
+            cheapest = totalActions
           }
           this.cheapestCost = totalCost
         }
@@ -138,21 +139,25 @@ export abstract class AgentAction {
     }
 
     // no more valid child actions
-    if (cheapest.size() === 0) {
-      // we have found the winning action!
+    if (cheapest === undefined) {
+      // we have found a working action!
       if (this.proceduralConditionsValid && this.preconditionsValid) {
-        cheapest.clear()
+        cheapest = []
         cheapest.push(this)
 
         this.cheapestChilds = cheapest
-        return this.cost + this.agentPosition.sub(this.position).Magnitude
+        return [
+          this.cost + this.agentPosition.sub(this.position).Magnitude,
+          cheapest
+        ]
       } else {
         this.cheapestChilds = cheapest
-        return math.huge
+        return [math.huge, cheapest]
       }
     }
 
-    return this.cost + this.cheapestCost
+    this.cheapestChilds = cheapest
+    return [this.cost + this.cheapestCost, cheapest]
   }
 
   /** Get the distance from `child` to this action. */

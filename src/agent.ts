@@ -163,14 +163,14 @@ export class Agent {
 
   /** Get the cheapest branch out of the actions */
   run() {
-    const totalActions: AgentAction[] = []
+    let totalActions: AgentAction[] | undefined = []
     let actions: AgentAction[] = []
     let cheapest = math.huge
     let totalCheapest = 0
 
     for (const [, goal] of this.goals) {
-      totalCheapest = goal.getTotalCost(totalActions)
-      if (totalCheapest < cheapest) {
+      ;[totalCheapest, totalActions] = goal.getTotalCost(totalActions)
+      if (totalActions !== undefined && totalCheapest < cheapest) {
         cheapest = totalCheapest
         actions = totalActions
       }

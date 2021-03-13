@@ -13,24 +13,27 @@ export class AgentGoal {
    * @param cheapest The cheapest branch
    * @returns The cheapest cost
    */
-  getTotalCost(cheapest: AgentAction[]) {
-    cheapest.clear()
+  getTotalCost(cheapest?: AgentAction[]): [number, AgentAction[] | undefined] {
+    cheapest = undefined
     this.cheapestCost = math.huge
-    const totalActions: AgentAction[] = []
+    let totalActions: AgentAction[] | undefined = undefined
     let totalCost = 0
 
     for (const child of this.children) {
-      totalCost = child.getTotalCost(totalActions)
+      ;[totalCost, totalActions] = child.getTotalCost(totalActions)
 
       if (totalCost < this.cheapestCost) {
-        if (totalActions.size() > 0) {
-          totalActions.forEach((value) => cheapest.push(value))
+        if (totalActions !== undefined) {
+          cheapest = totalActions
         }
         this.cheapestCost = totalCost
       }
     }
 
-    return cheapest.size() > 0 ? this.cheapestCost * this.multiplier : math.huge
+    return [
+      cheapest !== undefined ? this.cheapestCost * this.multiplier : math.huge,
+      cheapest
+    ]
   }
 
   /**
