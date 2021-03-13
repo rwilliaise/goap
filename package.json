@@ -1,33 +1,32 @@
 {
-	"name": "@rbxts/goap",
-	"version": "3.1.0",
-	"description": "",
-	"main": "out/init.lua",
-	"scripts": {
-		"prepublishOnly": "rbxtsc"
-	},
-	"keywords": [],
-	"author": "",
-	"license": "MIT",
-	"publishConfig": {
-		"access": "public"
-	},
-	"repository": "github:rwilliaise/goap",
-	"homepage": "https://github.com/rwilliaise/goap#readme",
-	"types": "out/index.d.ts",
-	"devDependencies": {
-		"@rbxts/compiler-types": "^1.0.0-types.0",
-		"@rbxts/services": "^1.1.4",
-		"@rbxts/thread": "^1.0.0",
-		"@rbxts/types": "^1.0.461",
-		"@typescript-eslint/eslint-plugin": "^4.15.1",
-		"@typescript-eslint/parser": "^4.15.1",
-		"eslint": "^7.20.0",
-		"eslint-config-prettier": "^7.2.0",
-		"eslint-plugin-prettier": "^3.3.1",
-		"eslint-plugin-roblox-ts": "0.0.24",
-		"prettier": "^2.2.1",
-		"rbxts-transformer-services": "^1.0.0",
-		"typescript": "^4.1.5"
-	}
+  "name": "@rbxts/goap",
+  "version": "3.1.0",
+  "description": "",
+  "main": "out/init.lua",
+  "scripts": {
+    "prepublishOnly": "rbxtsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": "github:rwilliaise/goap",
+  "homepage": "https://github.com/rwilliaise/goap#readme",
+  "types": "out/index.d.ts",
+  "devDependencies": {
+    "@rbxts/compiler-types": "^1.0.0-types.0",
+    "@rbxts/services": "^1.1.4",
+    "@rbxts/types": "^1.0.461",
+    "@typescript-eslint/eslint-plugin": "^4.15.1",
+    "@typescript-eslint/parser": "^4.15.1",
+    "eslint": "^7.20.0",
+    "eslint-config-prettier": "^7.2.0",
+    "eslint-plugin-prettier": "^3.3.1",
+    "eslint-plugin-roblox-ts": "0.0.24",
+    "prettier": "^2.2.1",
+    "rbxts-transformer-services": "^1.0.0",
+    "typescript": "^4.1.5"
+  }
 }

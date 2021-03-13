@@ -1,4 +1,4 @@
-import Thread from '@rbxts/thread'
+import Thread from 'thread'
 import { AgentAction } from 'action'
 import { AgentGoal } from 'goal'
 
@@ -155,9 +155,10 @@ export class Agent {
     }
   }
 
-  /** Starts executing the plan in a seperate coroutine. */
+  /** Starts executing the plan in a seperate thread. */
   runThreaded() {
     const newActions = this.run()
+    task.synchronize()
     Thread.Spawn(() => this.onRunComplete(newActions))
   }
 
@@ -210,7 +211,7 @@ export class Agent {
     for (const [, goal] of this.goals) {
       this.createTree(goal)
     }
-
+    task.synchronize()
     this.runningThread = RunningThread.NONE
   }
 

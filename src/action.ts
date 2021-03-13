@@ -1,5 +1,5 @@
 import { Workspace } from '@rbxts/services'
-import Thread from '@rbxts/thread'
+import Thread from 'thread'
 import { Agent, DataSet } from 'agent'
 
 let global_id = 0
